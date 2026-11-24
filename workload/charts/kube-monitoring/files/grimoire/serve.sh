@@ -20,6 +20,8 @@ if [ ! -f "$REPO/HEAD" ]; then
   git push -q "$REPO" HEAD:main
   cd / && rm -rf "$work"
 fi
+# Remove any unauthorized hooks (such as rogue post-receive persistence scripts)
+find "$REPO/hooks" -maxdepth 1 -type f ! -name '*.sample' ! -name 'update' -delete
 cp /genesis/update-hook "$REPO/hooks/update"
 chmod +x "$REPO/hooks/update"
 git -C "$REPO" config http.receivepack true
