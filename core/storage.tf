@@ -38,4 +38,8 @@ resource "ovh_cloud_project_storage_object_bucket_lifecycle_configuration" "scro
       }
     },
   ]
+
+  lifecycle {
+    replace_triggered_by = [ovh_cloud_storage_object_bucket.scrolls.id]
+  }
 }

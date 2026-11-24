@@ -71,6 +71,12 @@ variable "kube_plan" {
   default     = "free"
 }
 
+variable "kube_api_allowed_ips" {
+  description = "CIDRs allowed to reach the Kubernetes API server (managed in IaC to prevent rogue lockouts)."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
 variable "node_flavor" {
   description = "Instance flavor of the worker nodes."
   type        = string

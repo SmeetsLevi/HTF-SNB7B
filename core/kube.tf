@@ -19,18 +19,27 @@ resource "ovh_cloud_project_kube" "this" {
   depends_on = [ovh_cloud_gateway.this]
 }
 
+resource "ovh_cloud_project_kube_iprestrictions" "this" {
+  service_name = var.service_name
+  kube_id      = ovh_cloud_project_kube.this.id
+  ips          = var.kube_api_allowed_ips
+}
+
 resource "ovh_cloud_project_kube_nodepool" "default" {
   service_name = var.service_name
   kube_id      = ovh_cloud_project_kube.this.id
   name         = "${var.name_prefix}-pool"
   flavor_name  = var.node_flavor
 
-  autoscale      = true
-  min_nodes      = var.node_min_count
-  max_nodes      = var.node_max_count
-  desired_nodes  = var.node_desired_count
-  anti_affinity  = true
-  monthly_billed = false
+  autoscale                                    = true
+  autoscaling_scale_down_utilization_threshold = 0.5
+  autoscaling_scale_down_unneeded_time_seconds = 600
+  autoscaling_scale_down_unready_time_seconds  = 1200
+  min_nodes                                    = var.node_min_count
+  max_nodes                                    = var.node_max_count
+  desired_nodes                                = var.node_desired_count
+  anti_affinity                                = true
+  monthly_billed                               = false
 
   template {
     metadata {

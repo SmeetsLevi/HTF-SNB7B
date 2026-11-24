@@ -1,0 +1,197 @@
+name: Terraform IaC CI/CD & Drift Detection
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "core/**"
+      - "workload/**"
+      - ".github/workflows/terraform.yml"
+  push:
+    branches: [main]
+    paths:
+      - "core/**"
+      - "workload/**"
+      - ".github/workflows/terraform.yml"
+  schedule:
+    # Periodic drift check every 30 minutes
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Terraform action to execute"
+        required: true
+        default: "plan"
+        type: choice
+        options:
+          - plan
+          - apply
+
+# The S3 backend has no state locking; serialize all Terraform runs to prevent state corruption.
+concurrency:
+  group: achrona-terraform-state
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  OVH_ENDPOINT: "ovh-eu"
+  OVH_CLIENT_ID: ${{ secrets.OVH_CLIENT_ID }}
+  OVH_CLIENT_SECRET: ${{ secrets.OVH_CLIENT_SECRET }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+jobs:
+  lint-and-plan-core:
+    name: Core - Lint, Validate & Plan
+    runs-on: ubuntu-latest
+    outputs:
+      exitcode: ${{ steps.plan.outputs.exitcode }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.11.4"
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Verify secrets are configured
+        run: |
+          for var in OVH_CLIENT_ID OVH_CLIENT_SECRET AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
+            if [ -z "${!var}" ]; then
+              echo "::error::Missing required secret: $var"
+              exit 1
+            fi
+          done
+
+      - name: Check Terraform formatting
+        run: |
+          terraform -chdir=core fmt -check -recursive -diff
+          terraform -chdir=workload fmt -check -recursive -diff
+
+      - name: Lint Helm charts
+        run: |
+          helm lint workload/charts/kube-monitoring
+          helm lint workload/charts/ancient-oracle
+
+      - name: Core - Init, Validate & Plan
+        id: plan
+        working-directory: core
+        run: |
+          terraform init -reconfigure -backend-config=backend.hcl -no-color
+          terraform validate -no-color
+          set +e
+          terraform plan -detailed-exitcode -no-color
+          rc=$?
+          set -e
+          echo "exitcode=$rc" >> "$GITHUB_OUTPUT"
+          if [ "$rc" -eq 1 ]; then
+            exit 1
+          fi
+          if [ "$rc" -eq 2 ]; then
+            echo "::warning::Drift or pending changes detected in core/"
+          fi
+
+  apply-core:
+    name: Core - Apply (Single Source of Truth)
+    needs: lint-and-plan-core
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && inputs.action == 'apply')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.11.4"
+
+      - name: Core - Init & Apply
+        working-directory: core
+        run: |
+          terraform init -reconfigure -backend-config=backend.hcl -no-color
+          terraform apply -auto-approve -no-color
+
+      - name: Core - Post-Apply Drift Check
+        working-directory: core
+        run: terraform plan -detailed-exitcode -no-color
+
+  plan-workload:
+    name: Workload - Validate & Plan
+    needs: [lint-and-plan-core, apply-core]
+    if: |
+      always() &&
+      needs.lint-and-plan-core.result == 'success' &&
+      (needs.apply-core.result == 'success' || needs.apply-core.result == 'skipped')
+    runs-on: ubuntu-latest
+    outputs:
+      exitcode: ${{ steps.plan.outputs.exitcode }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.11.4"
+
+      - name: Workload - Init, Validate & Plan
+        id: plan
+        working-directory: workload
+        run: |
+          terraform init -reconfigure -backend-config=backend.hcl -no-color
+          terraform validate -no-color
+          set +e
+          terraform plan -detailed-exitcode -no-color
+          rc=$?
+          set -e
+          echo "exitcode=$rc" >> "$GITHUB_OUTPUT"
+          if [ "$rc" -eq 1 ]; then
+            exit 1
+          fi
+          if [ "$rc" -eq 2 ]; then
+            echo "::warning::Drift or pending changes detected in workload/"
+          fi
+
+      - name: Fail scheduled drift check if drift detected
+        if: |
+          github.event_name == 'schedule' &&
+          (needs.lint-and-plan-core.outputs.exitcode == '2' || steps.plan.outputs.exitcode == '2')
+        run: |
+          echo "::error::Infrastructure drift detected! Core exit=${{ needs.lint-and-plan-core.outputs.exitcode }}, Workload exit=${{ steps.plan.outputs.exitcode }}"
+          exit 1
+
+  apply-workload:
+    name: Workload - Apply (Single Source of Truth)
+    needs: plan-workload
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && inputs.action == 'apply')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.11.4"
+
+      - name: Workload - Init & Apply
+        working-directory: workload
+        run: |
+          terraform init -reconfigure -backend-config=backend.hcl -no-color
+          terraform apply -auto-approve -no-color
+
+      - name: Workload - Post-Apply Drift Check
+        working-directory: workload
+        run: terraform plan -detailed-exitcode -no-color
