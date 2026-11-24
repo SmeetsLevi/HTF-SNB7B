@@ -17,8 +17,8 @@ metadata:
     {{- include "km.labels" . | nindent 4 }}
 type: Opaque
 stringData:
-  S3_ACCESS_KEY: 9d4e1c7a3b6f4c20a85e
-  S3_SECRET_KEY: f0a8c35e91d24b7ea6c3d58e2b17940c6e3a
+  S3_ACCESS_KEY: {{ .Values.scrolls.credentials.s3AccessKey | default "" | quote }}
+  S3_SECRET_KEY: {{ .Values.scrolls.credentials.s3SecretKey | default "" | quote }}
 ---
 apiVersion: v1
 kind: Secret
@@ -30,7 +30,7 @@ metadata:
     {{- include "km.labels" . | nindent 4 }}
 type: Opaque
 stringData:
-  SIGNING_KEY: 7c1e5b9a2d804f63b1a97e0c4d58f2a61b3e90d7c5a4f8e2
+  SIGNING_KEY: {{ .Values.scrolls.credentials.signingKey | default "" | quote }}
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -75,6 +75,8 @@ spec:
       labels:
         app.kubernetes.io/name: scrolls-app
         app.kubernetes.io/part-of: scrolls
+      annotations:
+        checksum/credentials: {{ printf "%s:%s:%s" (.Values.scrolls.credentials.s3AccessKey | default "") (.Values.scrolls.credentials.s3SecretKey | default "") (.Values.scrolls.credentials.signingKey | default "") | sha256sum | trunc 16 }}
     spec:
       serviceAccountName: scrolls-app
       automountServiceAccountToken: false

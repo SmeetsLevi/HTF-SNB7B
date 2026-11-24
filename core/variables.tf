@@ -112,3 +112,9 @@ variable "registry_plan" {
   type        = string
   default     = "SMALL"
 }
+
+variable "scrolls_s3_key_generation" {
+  description = "Increment to declaratively rotate the scrolls_app S3 credential."
+  type        = number
+  default     = 2
+}

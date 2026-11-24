@@ -5,6 +5,11 @@ scrolls:
     tag: "1.37.0"
   # Megabytes of the ledger that scrolls-app keeps warm in memory.
   ledgerMegabytes: 12
+  # Populated via Terraform set_sensitive from rotated credentials; never hardcoded in Git.
+  credentials:
+    s3AccessKey: ""
+    s3SecretKey: ""
+    signingKey: ""
 
 monitoring:
   image:

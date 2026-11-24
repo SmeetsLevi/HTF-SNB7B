@@ -1,4 +1,5 @@
-# Access of the metrics-collector account.
+# Least-privilege read-only access for the metrics-collector account.
+# Only grants nodes/pods/metrics read permissions required by monitoring.yaml.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -38,32 +39,16 @@ rules:
     verbs: [get]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: monitoring-collector-scrape-config
-  labels:
-    rbac.achrona.io/aggregate-to-collector: "true"
-    app.kubernetes.io/part-of: monitoring
-    {{- include "km.labels" . | nindent 4 }}
-rules:
-  - apiGroups: [""]
-    resources: [secrets]
-    verbs: [get, list, watch]
-  - apiGroups: [""]
-    resources: [configmaps]
-    verbs: [get, list, watch, create, update, patch]
----
-apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: monitoring-collector-reader
+  name: monitoring-collector-least-privilege
   labels:
     app.kubernetes.io/part-of: monitoring
     {{- include "km.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: cluster-admin
+  name: monitoring-collector-reader
 subjects:
   - kind: ServiceAccount
     name: metrics-collector

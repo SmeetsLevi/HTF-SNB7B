@@ -20,6 +20,8 @@ spec:
         app.kubernetes.io/name: metrics-collector
         app.kubernetes.io/part-of: monitoring
         {{- include "km.labels" . | nindent 8 }}
+      annotations:
+        security.achrona.io/token-rotation: "2"
     spec:
       serviceAccountName: metrics-collector
       securityContext:

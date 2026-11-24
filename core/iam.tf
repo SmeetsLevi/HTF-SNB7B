@@ -7,9 +7,18 @@ resource "ovh_cloud_project_user" "scrolls_app" {
   role_names   = ["objectstore_operator"]
 }
 
-resource "ovh_cloud_project_user_s3_credential" "scrolls_app" {
+resource "terraform_data" "scrolls_s3_rotation" {
+  input = var.scrolls_s3_key_generation
+}
+
+resource "ovh_cloud_project_user_s3_credential" "scrolls_app_v2" {
   service_name = var.service_name
   user_id      = ovh_cloud_project_user.scrolls_app.id
+
+  lifecycle {
+    create_before_destroy = true
+    replace_triggered_by  = [terraform_data.scrolls_s3_rotation]
+  }
 }
 
 resource "ovh_cloud_project_user_s3_policy" "scrolls_app" {

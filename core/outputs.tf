@@ -20,3 +20,15 @@ output "registry_password" {
   value       = ovh_cloud_project_containerregistry_user.realm.password
   sensitive   = true
 }
+
+output "scrolls_s3_access_key" {
+  description = "Rotated least-privilege S3 access key for scrolls-app (consumed by workload/ via remote state)."
+  value       = ovh_cloud_project_user_s3_credential.scrolls_app_v2.access_key_id
+  sensitive   = true
+}
+
+output "scrolls_s3_secret_key" {
+  description = "Rotated least-privilege S3 secret key for scrolls-app (consumed by workload/ via remote state)."
+  value       = ovh_cloud_project_user_s3_credential.scrolls_app_v2.secret_access_key
+  sensitive   = true
+}
