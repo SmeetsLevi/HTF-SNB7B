@@ -28,18 +28,16 @@ metadata:
     app.kubernetes.io/part-of: oracle
     {{- include "km.labels" . | nindent 4 }}
 rules:
-  # Read the realm, so the Seer understands what it sees.
-  - apiGroups: ["", "apps", "batch", "events.k8s.io"]
-    resources: ["*"]
+  # Read-only view of non-secret workload resources so the Seer understands incidents.
+  - apiGroups: [""]
+    resources: [pods, events, services, namespaces, nodes]
     verbs: [get, list, watch]
-  # Apply remedies and the grimoire's spirits.
   - apiGroups: [apps]
-    resources: [deployments, deployments/scale]
-    verbs: [get, list, watch, create, update, patch, delete]
-  # Hand out and take back access during incidents.
-  - apiGroups: [rbac.authorization.k8s.io]
-    resources: ["*"]
-    verbs: ["*"]
+    resources: [deployments, replicasets]
+    verbs: [get, list, watch]
+  - apiGroups: [events.k8s.io]
+    resources: [events]
+    verbs: [get, list, watch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -52,6 +50,38 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: ixeth-seer
+subjects:
+  - kind: ServiceAccount
+    name: ixeth
+    namespace: {{ .Values.oracle.namespace }}
+---
+# Scoped write access: the Seer may only patch/scale Deployments in the scrolls namespace.
+# It cannot modify its own namespace (oracle), create/delete resources, or touch RBAC.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ixeth-remediator
+  namespace: {{ .Values.scrolls.namespace }}
+  labels:
+    app.kubernetes.io/part-of: oracle
+    {{- include "km.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [apps]
+    resources: [deployments, deployments/scale]
+    verbs: [get, list, watch, update, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ixeth-remediator
+  namespace: {{ .Values.scrolls.namespace }}
+  labels:
+    app.kubernetes.io/part-of: oracle
+    {{- include "km.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ixeth-remediator
 subjects:
   - kind: ServiceAccount
     name: ixeth
