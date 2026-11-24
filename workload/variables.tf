@@ -35,7 +35,7 @@ variable "state_endpoint" {
 variable "ancient_oracle_tag" {
   description = "Tag of the Ancient Oracle's image in the team's registry (<host>/realm/ancient-oracle)."
   type        = string
-  default     = "1.0.0"
+  default     = "1.0.1"
 }
 
 # --- Ingress -------------------------------------------------
