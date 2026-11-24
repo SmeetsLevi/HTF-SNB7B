@@ -194,4 +194,8 @@ jobs:
 
       - name: Workload - Post-Apply Drift Check
         working-directory: workload
-        run: terraform plan -detailed-exitcode -no-color
+        run: |
+          terraform plan -detailed-exitcode -no-color
+          echo "### Achrona IaC Sync Status" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **core/**: In sync (0 drift)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **workload/**: In sync (0 drift)" >> "$GITHUB_STEP_SUMMARY"

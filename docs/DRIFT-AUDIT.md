@@ -28,4 +28,10 @@ Audit uitgevoerd op de live OVHcloud Public Cloud omgeving (`5d455b6299b540a392d
   * Valideert `terraform fmt -check`, `terraform validate`, `helm lint` en `terraform plan` bij elke PR en push.
   * Voert periodieke drift-detectie uit (elke 30 minuten via `schedule`).
   * Gebruikt `concurrency` (`cancel-in-progress: false`) om gelijktijdige state-mutaties te voorkomen.
-  * Rolt wijzigingen automatisch uit na merge op `main` met post-apply drift verificatie.
+  * Rolt wijzigingen automatisch uit na merge op `main` (2-stage: `core` → `workload`) met post-apply drift verificatie.
+
+## 4. Verificatie na herstel
+
+* `terraform -chdir=core plan -detailed-exitcode`: **Exit 0 (`No changes`)**
+* `terraform -chdir=workload plan -detailed-exitcode`: **Exit 0 (`No changes`)**
+* OVHcloud API-audit: 0 ghost resources (`hotfix-pool`, `debug-admin` en ongeautoriseerde S3-key verwijderd), `scrolls` bucket terug op `AES256` + `versioning: enabled` + beide lifecycle rules, `achrona-kube` terug op `MINIMAL_DOWNTIME` + bereikbare API, `achrona-gateway` terug op model `S`, `achrona-pool` terug op `min=1, max=3, threshold=0.5, unneeded=600s` en `managed-by=terraform`.
